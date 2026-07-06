@@ -1,43 +1,80 @@
 # Fellowship Trinkets Overlay
 
-Overlay Electron inspire de `mrfarmad/FS_ovelay`.
+Overlay Windows pour **Fellowship**.
 
-## Lancer
+L'application affiche les trinkets/relics du groupe directement au-dessus du jeu, avec leurs icones et leurs timers de recharge quand ils sont utilises.
 
-Depuis ce dossier, utilise simplement :
+## Fonctionnalites
 
-```powershell
-.\Start-Overlay.cmd
-```
+- Affichage des joueurs du groupe detectes dans les logs de combat.
+- Affichage du Spirit actuel des joueurs quand l'information est disponible.
+- Affichage des trinkets/relics equipes avec leurs vraies icones.
+- Timer de cooldown quand un trinket/relic est utilise.
+- Support des trinkets FellowsGuide connus.
+- Fonctionne aussi en solo pour tester l'overlay sur des mannequins.
+- Fenetre d'overlay deplacable.
+- Mode click-through pour jouer sans que l'overlay bloque la souris.
+- Reglages simples directement en jeu.
 
-Si `node_modules` manque ou si Electron n'est pas installe :
+## Installation
+
+1. Va dans l'onglet **Releases** du projet GitHub.
+2. Telecharge le fichier :
+
+   `FellowshipTrinketsOverlay-win32-x64.zip`
+
+3. Dezippe le fichier ou tu veux sur ton PC.
+4. Lance :
+
+   `FellowshipTrinketsOverlay.exe`
+
+Il n'y a rien d'autre a installer si tu utilises la version `.exe`.
+
+## Utilisation
+
+L'overlay lit automatiquement le dernier combat log de Fellowship dans :
+
+`F:\SteamLibrary\steamapps\common\Fellowship\fellowship\Saved\CombatLogs`
+
+Raccourcis :
+
+- `F8` : activer/desactiver l'interaction avec l'overlay.
+- `F10` : afficher/masquer l'overlay.
+- `F11` : ouvrir/fermer les reglages.
+
+Dans les reglages, tu peux :
+
+- choisir le dossier des logs ;
+- changer la taille de l'overlay ;
+- changer le layout ;
+- activer/desactiver le click-through.
+
+## Notes
+
+L'overlay se base sur les logs de combat du jeu. Si le jeu n'ecrit pas encore une information dans les logs, l'overlay ne peut pas l'inventer.
+
+Les timers de trinkets sont bases sur les IDs connus des relics/trinkets Fellowship. Si un nouveau trinket apparait dans le jeu, il faudra peut-etre ajouter son mapping dans les donnees de l'application.
+
+## Developpement
+
+Installer les dependances :
 
 ```powershell
 .\Install-Dependencies.cmd
 ```
 
-Alternative avec le pnpm embarque de Codex :
+Lancer en mode developpement :
 
 ```powershell
-C:\Users\pierr\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\pnpm.cmd start
+.\Start-Overlay.cmd
 ```
 
-Hotkeys :
-
-- `F8` : bascule interaction/click-through
-- `F10` : affiche ou masque l'overlay
-- `F11` : ouvre les reglages
-
-L'overlay lit automatiquement le dernier fichier dans :
-
-`F:\SteamLibrary\steamapps\common\Fellowship\fellowship\Saved\CombatLogs`
-
-## Generer le .exe portable
+Generer une version portable Windows :
 
 ```powershell
 npm run build:portable
 ```
 
-Le fichier genere se trouve ici :
+Le build est genere ici :
 
 `dist\FellowshipTrinketsOverlay-win32-x64\FellowshipTrinketsOverlay.exe`
