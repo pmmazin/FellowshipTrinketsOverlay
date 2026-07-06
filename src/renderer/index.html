@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fellowship Trinkets</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main id="overlay-root">
+      <section id="party" class="party vertical"></section>
+      <section id="settings" class="settings hidden">
+        <header>
+          <div>
+            <h1>Fellowship Trinkets</h1>
+            <p id="source"></p>
+          </div>
+          <button id="closeSettings">X</button>
+        </header>
+        <div class="settings-grid">
+          <button id="pickFolder">Dossier logs</button>
+          <button id="refresh">Rafraichir</button>
+          <button id="toggleClick">Click-through</button>
+          <label>
+            Scale
+            <input id="scale" type="range" min="60" max="140" value="82" />
+          </label>
+          <label>
+            Layout
+            <select id="layout">
+              <option value="vertical">Vertical</option>
+              <option value="horizontal">Horizontal</option>
+            </select>
+          </label>
+        </div>
+        <p class="hotkeys">F8 interaction · F10 afficher/masquer · F11 reglages</p>
+      </section>
+    </main>
+    <script src="index.js"></script>
+  </body>
+</html>

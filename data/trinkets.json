@@ -1,0 +1,38 @@
+{
+  "trinket_ids": [
+    2913,
+    2914,
+    2925,
+    2926,
+    2937,
+    5248,
+    5249,
+    5246,
+    5253,
+    5250,
+    5252,
+    5254,
+    5255,
+    5251,
+    5247,
+    5256
+  ],
+  "trinkets": {
+    "2913": { "name": "Trinket 2913", "icon": "icons_trink/fellowsguide/2913.png" },
+    "2914": { "name": "Trinket 2914", "icon": "icons_trink/fellowsguide/2914.png" },
+    "2925": { "name": "Trinket 2925", "icon": "icons_trink/fellowsguide/2925.png" },
+    "2926": { "name": "Trinket 2926", "icon": "icons_trink/fellowsguide/2926.png" },
+    "2937": { "name": "Trinket 2937", "icon": "icons_trink/fellowsguide/2937.png" },
+    "5248": { "name": "Rejuvenate", "icon": "icons_trink/fellowsguide/5248.png", "activation_ids": [189] },
+    "5249": { "name": "Bloodrite Drums", "icon": "icons_trink/fellowsguide/5249.png", "activation_ids": [185] },
+    "5246": { "name": "Conjure Portal", "icon": "icons_trink/fellowsguide/5246.png", "activation_ids": [1504] },
+    "5253": { "name": "Major Invisibility", "icon": "icons_trink/fellowsguide/5253.png", "activation_ids": [1486] },
+    "5250": { "name": "Sanctuary", "icon": "icons_trink/fellowsguide/5250.png", "activation_ids": [186] },
+    "5252": { "name": "Chickenize", "icon": "icons_trink/fellowsguide/5252.png", "activation_ids": [1478] },
+    "5254": { "name": "Revive", "icon": "icons_trink/fellowsguide/5254.png", "activation_ids": [22] },
+    "5255": { "name": "Major Dispel", "icon": "icons_trink/fellowsguide/5255.png", "activation_ids": [187] },
+    "5251": { "name": "Obsidian Skin", "icon": "icons_trink/fellowsguide/5251.png", "activation_ids": [1952] },
+    "5247": { "name": "Restore Mana", "icon": "icons_trink/fellowsguide/5247.png", "activation_ids": [188] },
+    "5256": { "name": "Shard of Antimatter", "icon": "icons_trink/fellowsguide/5256.png", "activation_ids": [2073] }
+  }
+}

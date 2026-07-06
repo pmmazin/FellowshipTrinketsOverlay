@@ -1,0 +1,14 @@
+{
+  "name": "fellowship-trinkets-overlay",
+  "version": "0.2.0",
+  "description": "Fellowship trinket/relic cooldown overlay",
+  "main": "src/main/index.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:portable": "powershell -ExecutionPolicy Bypass -File .\\Build-Portable.ps1"
+  },
+  "devDependencies": {
+    "electron": "^36.9.5"
+  }
+}
