@@ -1,0 +1,64 @@
+{
+  "interrupts": {
+    "976": {
+      "name": "Bash",
+      "cooldown": 12,
+      "icon": "icons_interrupt/976.png",
+      "url": "https://www.fellowsguide.com/db/ability/976/"
+    },
+    "1116": {
+      "name": "Stagger",
+      "cooldown": 12,
+      "icon": "icons_interrupt/1116.png",
+      "url": "https://www.fellowsguide.com/db/ability/1116/"
+    },
+    "1844": {
+      "name": "Interrupt",
+      "cooldown": 12,
+      "icon": "icons_interrupt/1844.png",
+      "url": "https://www.fellowsguide.com/db/ability/1844/"
+    },
+    "1814": {
+      "name": "Intercession",
+      "cooldown": 300,
+      "icon": "icons_interrupt/1814.png",
+      "url": "https://www.fellowsguide.com/db/ability/1814/"
+    },
+    "1244": {
+      "name": "Jawbreaker",
+      "cooldown": 20,
+      "icon": "icons_interrupt/1244.png",
+      "url": "https://www.fellowsguide.com/db/ability/1244/"
+    },
+    "1200": {
+      "name": "Kick",
+      "cooldown": 12,
+      "icon": "icons_interrupt/1200.png",
+      "url": "https://www.fellowsguide.com/db/ability/1200/"
+    },
+    "1226": {
+      "name": "Pummel",
+      "cooldown": 16,
+      "icon": "icons_interrupt/1226.png",
+      "url": "https://www.fellowsguide.com/db/ability/1226/"
+    },
+    "1263": {
+      "name": "Scorch",
+      "cooldown": 20,
+      "icon": "icons_interrupt/1263.png",
+      "url": "https://www.fellowsguide.com/db/ability/1263/"
+    },
+    "1308": {
+      "name": "Disrupt",
+      "cooldown": 20,
+      "icon": "icons_interrupt/1308.png",
+      "url": "https://www.fellowsguide.com/db/ability/1308/"
+    },
+    "1019": {
+      "name": "Brain Freeze",
+      "cooldown": 20,
+      "icon": "icons_interrupt/1019.png",
+      "url": "https://www.fellowsguide.com/db/ability/1019/"
+    }
+  }
+}

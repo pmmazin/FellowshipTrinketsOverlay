@@ -8,6 +8,7 @@
   </head>
   <body>
     <main id="overlay-root">
+      <div id="cursorHalo" class="cursor-halo hidden"></div>
       <section id="party" class="party vertical"></section>
       <section id="interrupts" class="interrupt-feed"></section>
       <section id="settings" class="settings hidden">
@@ -21,6 +22,8 @@
         <div class="settings-grid">
           <button id="pickFolder">Dossier logs</button>
           <button id="refresh">Rafraichir</button>
+          <button id="pickInstall">Dossier installation</button>
+          <button id="updateApp">Mise a jour</button>
           <button id="toggleClick">Click-through</button>
           <label>
             Scale
@@ -32,6 +35,18 @@
               <option value="vertical">Vertical</option>
               <option value="horizontal">Horizontal</option>
             </select>
+          </label>
+          <label class="toggle-row">
+            Halo curseur
+            <input id="cursorHaloToggle" type="checkbox" />
+          </label>
+          <label class="toggle-row">
+            Fermer avec Fellowship
+            <input id="closeWithFellowship" type="checkbox" />
+          </label>
+          <label>
+            Taille curseur
+            <input id="cursorHaloSize" type="range" min="24" max="96" value="48" />
           </label>
         </div>
         <p class="hotkeys">F8 interaction · F10 afficher/masquer · F11 reglages</p>
