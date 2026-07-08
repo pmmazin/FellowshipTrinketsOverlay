@@ -25,14 +25,14 @@ Copy-Item -LiteralPath $electronDist -Destination $outputDir -Recurse
 Rename-Item -LiteralPath (Join-Path $outputDir "electron.exe") -NewName "$appName.exe"
 
 New-Item -ItemType Directory -Force -Path $appDir | Out-Null
-foreach ($entry in @("src", "data", "Heroes", "icons_trink", "icons_interrupt", "package.json", "README.md", "FellowshipOverlayWatcher.ps1", "Activer-Lancement-Avec-Fellowship.bat", "Desactiver-Lancement-Avec-Fellowship.bat")) {
+foreach ($entry in @("src", "data", "Heroes", "icons_trink", "icons_interrupt", "package.json", "README.md")) {
   $source = Join-Path $root $entry
   if (Test-Path $source) {
     Copy-Item -LiteralPath $source -Destination $appDir -Recurse
   }
 }
 
-foreach ($entry in @("FellowshipOverlayWatcher.ps1", "Activer-Lancement-Avec-Fellowship.bat", "Desactiver-Lancement-Avec-Fellowship.bat", "README.md")) {
+foreach ($entry in @("README.md")) {
   $source = Join-Path $root $entry
   if (Test-Path $source) {
     Copy-Item -LiteralPath $source -Destination $outputDir -Force

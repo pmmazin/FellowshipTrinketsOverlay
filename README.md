@@ -18,7 +18,6 @@ L'application affiche les trinkets/relics du groupe directement au-dessus du jeu
 - Reglages simples directement en jeu.
 - Bouton de mise a jour depuis l'application, avec remplacement de l'installation existante.
 - Fermeture automatique de l'overlay quand Fellowship se ferme.
-- Option de lancement automatique de l'overlay quand Fellowship demarre.
 
 ## Installation
 
@@ -55,21 +54,6 @@ Dans les reglages, tu peux :
 - choisir le dossier d'installation ;
 - installer la derniere mise a jour disponible dans ce dossier.
 - activer/desactiver la fermeture automatique avec Fellowship.
-
-## Lancement automatique avec Fellowship
-
-Pour lancer l'overlay automatiquement quand Fellowship demarre :
-
-1. Dans le dossier de l'application, lance :
-
-   `Activer-Lancement-Avec-Fellowship.bat`
-
-2. Le script ajoute un watcher discret au demarrage Windows.
-3. Quand `fellowship.exe` est detecte, l'overlay se lance automatiquement.
-
-Pour retirer ce lancement automatique, lance :
-
-`Desactiver-Lancement-Avec-Fellowship.bat`
 
 La mise a jour telecharge la derniere release, ferme l'application, remplace les fichiers dans le dossier d'installation choisi, puis relance `FellowshipTrinketsOverlay.exe`.
 
