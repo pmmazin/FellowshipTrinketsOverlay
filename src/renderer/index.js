@@ -4,16 +4,22 @@ const interrupts = document.getElementById("interrupts");
 const settingsPanel = document.getElementById("settings");
 const source = document.getElementById("source");
 const pickFolder = document.getElementById("pickFolder");
+const pickInstall = document.getElementById("pickInstall");
 const refresh = document.getElementById("refresh");
+const updateApp = document.getElementById("updateApp");
 const toggleClick = document.getElementById("toggleClick");
 const closeSettings = document.getElementById("closeSettings");
 const scaleInput = document.getElementById("scale");
 const layoutSelect = document.getElementById("layout");
+const cursorHalo = document.getElementById("cursorHalo");
+const cursorHaloToggle = document.getElementById("cursorHaloToggle");
+const cursorHaloSize = document.getElementById("cursorHaloSize");
 
 let latest = null;
 let clickThrough = true;
 let draggingParty = false;
 let draggingSettings = false;
+let draggingInterrupts = false;
 let dragStart = null;
 let cooldownTimer = null;
 
@@ -47,6 +53,11 @@ function setSettingsPanelPosition(settings = {}) {
 }
 
 function positionInterrupts(settings = {}, playerCount = latest?.players?.length || 0) {
+  if (settings.interruptPosition) {
+    interrupts.style.left = `${settings.interruptPosition.x}px`;
+    interrupts.style.top = `${settings.interruptPosition.y}px`;
+    return;
+  }
   const pos = settings.position || { x: 42, y: 110 };
   const scale = Number(settings.scale || 0.82);
   const isHorizontal = settings.layout === "horizontal";
@@ -68,6 +79,10 @@ function setSettings(settings = {}) {
   party.classList.toggle("horizontal", settings.layout === "horizontal");
   party.classList.toggle("vertical", settings.layout !== "horizontal");
   layoutSelect.value = settings.layout || "vertical";
+  cursorHaloToggle.checked = settings.cursorHalo === true;
+  cursorHaloSize.value = Math.round(Number(settings.cursorHaloSize || 48));
+  cursorHalo.style.setProperty("--cursor-size", `${Number(settings.cursorHaloSize || 48)}px`);
+  cursorHalo.classList.toggle("disabled", settings.cursorHalo !== true);
 }
 
 function renderChip(item) {
@@ -94,8 +109,9 @@ function renderInterrupt(item) {
   const cooldown = Number(item.cooldown || 0);
   const remaining = Math.max(0, readyAt - now);
   const icon = item.icon ? `<img src="${asset(item.icon)}" onerror="this.remove()" />` : "";
+  const timerText = remaining > 0 ? fmt(remaining) : (cooldown > 0 ? "OK" : "?");
   return `
-    <article class="interrupt-item" data-ready-at="${readyAt}" data-cooldown="${cooldown}">
+    <article class="interrupt-item ${item.missed ? "missed" : ""}" data-ready-at="${readyAt}" data-cooldown="${cooldown}">
       <div class="interrupt-icon">${icon || "!"}</div>
       <div class="interrupt-body">
         <div class="interrupt-line">
@@ -107,7 +123,7 @@ function renderInterrupt(item) {
           ${item.targetName ? `<span>sur ${escapeHtml(item.targetName)}</span>` : ""}
         </div>
       </div>
-      <div class="interrupt-cd">${remaining > 0 ? fmt(remaining) : ""}</div>
+      <div class="interrupt-cd">CD ${timerText}</div>
     </article>
   `;
 }
@@ -131,10 +147,11 @@ function updateCooldowns() {
 
   for (const item of interrupts.querySelectorAll(".interrupt-item")) {
     const readyAt = Number(item.dataset.readyAt || 0);
+    const cooldown = Number(item.dataset.cooldown || 0);
     const remaining = Math.max(0, readyAt - Date.now());
     const timer = item.querySelector(".interrupt-cd");
     item.classList.toggle("cooldown", remaining > 0);
-    if (timer) timer.textContent = remaining > 0 ? fmt(remaining) : "";
+    if (timer) timer.textContent = `CD ${remaining > 0 ? fmt(remaining) : (cooldown > 0 ? "OK" : "?")}`;
     if (remaining > 0) hasActiveCooldown = true;
   }
 
@@ -214,9 +231,30 @@ window.fellowshipOverlay.onRefreshState((payload) => {
   refresh.textContent = payload.refreshing ? "..." : "Rafraichir";
 });
 
+window.fellowshipOverlay.onUpdateState((payload) => {
+  source.textContent = payload.message || "";
+  updateApp.disabled = !!payload.updating;
+  updateApp.textContent = payload.updating ? "Telechargement..." : "Mise a jour";
+});
+
+window.fellowshipOverlay.onCursorPosition((payload) => {
+  if (!payload.visible || cursorHalo.classList.contains("disabled")) {
+    cursorHalo.classList.add("hidden");
+    return;
+  }
+  cursorHalo.classList.remove("hidden");
+  cursorHalo.style.transform = `translate(${Math.round(payload.x)}px, ${Math.round(payload.y)}px)`;
+});
+
 pickFolder.addEventListener("click", async () => {
   const next = await window.fellowshipOverlay.chooseLogDirectory();
   setSettings(next);
+});
+
+pickInstall.addEventListener("click", async () => {
+  const next = await window.fellowshipOverlay.chooseInstallDirectory();
+  setSettings(next);
+  source.textContent = next.updateInstallDir ? `Installation : ${next.updateInstallDir}` : "Dossier installation non change.";
 });
 
 refresh.addEventListener("click", async () => {
@@ -228,6 +266,21 @@ refresh.addEventListener("click", async () => {
   } finally {
     refresh.disabled = false;
     refresh.textContent = "Rafraichir";
+  }
+});
+
+updateApp.addEventListener("click", async () => {
+  updateApp.disabled = true;
+  updateApp.textContent = "Verification...";
+  source.textContent = "Recherche d'une mise a jour...";
+  try {
+    const result = await window.fellowshipOverlay.updateApp();
+    source.textContent = result.message || "Mise a jour terminee.";
+  } catch (error) {
+    source.textContent = error?.message || "Erreur pendant la mise a jour.";
+  } finally {
+    updateApp.disabled = false;
+    updateApp.textContent = "Mise a jour";
   }
 });
 
@@ -252,14 +305,41 @@ layoutSelect.addEventListener("change", async () => {
   await window.fellowshipOverlay.saveSettings({ layout: layoutSelect.value });
 });
 
+cursorHaloToggle.addEventListener("change", async () => {
+  cursorHalo.classList.toggle("disabled", !cursorHaloToggle.checked);
+  if (!cursorHaloToggle.checked) cursorHalo.classList.add("hidden");
+  await window.fellowshipOverlay.saveSettings({ cursorHalo: cursorHaloToggle.checked });
+});
+
+cursorHaloSize.addEventListener("input", async () => {
+  const size = Number(cursorHaloSize.value);
+  cursorHalo.style.setProperty("--cursor-size", `${size}px`);
+  await window.fellowshipOverlay.saveSettings({ cursorHaloSize: size });
+});
+
 party.addEventListener("mousedown", (event) => {
   if (clickThrough) return;
+  if (event.target.closest("#interrupts")) return;
   draggingParty = true;
   dragStart = {
     mouseX: event.clientX,
     mouseY: event.clientY,
     left: parseFloat(party.style.left || "42"),
     top: parseFloat(party.style.top || "110"),
+  };
+});
+
+interrupts.addEventListener("mousedown", (event) => {
+  if (clickThrough) return;
+  draggingInterrupts = true;
+  const rect = interrupts.getBoundingClientRect();
+  interrupts.style.left = `${rect.left}px`;
+  interrupts.style.top = `${rect.top}px`;
+  dragStart = {
+    mouseX: event.clientX,
+    mouseY: event.clientY,
+    left: rect.left,
+    top: rect.top,
   };
 });
 
@@ -279,15 +359,15 @@ settingsPanel.querySelector("header").addEventListener("mousedown", (event) => {
 });
 
 window.addEventListener("mousemove", (event) => {
-  if (!draggingParty && !draggingSettings) return;
-  const target = draggingSettings ? settingsPanel : party;
+  if (!draggingParty && !draggingSettings && !draggingInterrupts) return;
+  const target = draggingSettings ? settingsPanel : draggingInterrupts ? interrupts : party;
   const maxX = Math.max(0, window.innerWidth - target.offsetWidth);
   const maxY = Math.max(0, window.innerHeight - target.offsetHeight);
   const x = Math.min(maxX, Math.max(0, dragStart.left + event.clientX - dragStart.mouseX));
   const y = Math.min(maxY, Math.max(0, dragStart.top + event.clientY - dragStart.mouseY));
   target.style.left = `${x}px`;
   target.style.top = `${y}px`;
-  if (!draggingSettings) {
+  if (draggingParty && !latest?.settings?.interruptPosition) {
     positionInterrupts({
       ...(latest?.settings || {}),
       position: { x, y },
@@ -312,6 +392,16 @@ window.addEventListener("mouseup", async () => {
       settingsPosition: {
         x: parseFloat(settingsPanel.style.left || "0"),
         y: parseFloat(settingsPanel.style.top || "0"),
+      },
+    });
+  }
+
+  if (draggingInterrupts) {
+    draggingInterrupts = false;
+    await window.fellowshipOverlay.saveSettings({
+      interruptPosition: {
+        x: parseFloat(interrupts.style.left || "42"),
+        y: parseFloat(interrupts.style.top || "110"),
       },
     });
   }

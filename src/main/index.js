@@ -1,5 +1,7 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, globalShortcut, ipcMain, dialog, screen } = require("electron");
+const { spawn } = require("child_process");
 const fs = require("fs");
+const https = require("https");
 const path = require("path");
 
 const DEFAULT_LOG_DIR = "F:\\SteamLibrary\\steamapps\\common\\Fellowship\\fellowship\\Saved\\CombatLogs";
@@ -9,11 +11,25 @@ const MAX_PARSE_BYTES = 4 * 1024 * 1024;
 const INITIAL_SCAN_BYTES = 64 * 1024 * 1024;
 const ACTIVE_LOG_MAX_AGE_MS = 30 * 60 * 1000;
 const MAX_INTERRUPTS = 4;
+const UPDATE_REPO = "pmmazin/FellowshipTrinketsOverlay";
+const INTERRUPT_COOLDOWN_FALLBACKS = {
+  512: 23,
+  976: 12,
+  1019: 20,
+  1116: 12,
+  1200: 12,
+  1226: 16,
+  1244: 20,
+  1263: 20,
+  1308: 20,
+  1844: 12,
+};
 
 let win;
 let watcher;
 let activeLogPath = null;
 let parseTimer = null;
+let cursorTimer = null;
 let clickThrough = true;
 let settings = {};
 let lastData = null;
@@ -40,6 +56,190 @@ function readJson(filePath, fallback) {
   }
 }
 
+function compareVersions(left, right) {
+  const a = String(left || "0").replace(/^v/i, "").split(".").map((part) => Number(part) || 0);
+  const b = String(right || "0").replace(/^v/i, "").split(".").map((part) => Number(part) || 0);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (a[index] || 0) - (b[index] || 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+function requestJson(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, {
+      headers: {
+        "User-Agent": "FellowshipTrinketsOverlay",
+        Accept: "application/vnd.github+json",
+      },
+    }, (response) => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
+        response.resume();
+        requestJson(response.headers.location).then(resolve, reject);
+        return;
+      }
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`GitHub a repondu ${response.statusCode}.`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(body));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    request.on("error", reject);
+  });
+}
+
+function downloadFile(url, destination, onProgress) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destination);
+    let settled = false;
+
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      file.close(() => {
+        fs.rm(destination, { force: true }, () => reject(error));
+      });
+    };
+
+    const request = https.get(url, {
+      headers: {
+        "User-Agent": "FellowshipTrinketsOverlay",
+        Accept: "application/octet-stream",
+      },
+    }, (response) => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
+        response.resume();
+        file.close(() => {
+          fs.rm(destination, { force: true }, () => {
+            downloadFile(response.headers.location, destination, onProgress).then(resolve, reject);
+          });
+        });
+        return;
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        response.resume();
+        fail(new Error(`Telechargement impossible (${response.statusCode}).`));
+        return;
+      }
+
+      const total = Number(response.headers["content-length"] || 0);
+      let received = 0;
+      response.on("data", (chunk) => {
+        received += chunk.length;
+        if (total > 0) onProgress?.(received, total);
+      });
+      response.pipe(file);
+      file.on("finish", () => {
+        if (settled) return;
+        settled = true;
+        file.close(() => resolve(destination));
+      });
+    });
+
+    request.on("error", fail);
+    file.on("error", fail);
+  });
+}
+
+function selectUpdateAsset(release) {
+  const assets = Array.isArray(release?.assets) ? release.assets : [];
+  return assets.find((asset) => /FellowshipTrinketsOverlay.*win.*\.(zip|exe)$/i.test(asset.name))
+    || assets.find((asset) => /FellowshipTrinketsOverlay.*\.(zip|exe)$/i.test(asset.name))
+    || assets.find((asset) => /\.(zip|exe)$/i.test(asset.name));
+}
+
+function getDefaultInstallDir() {
+  return app.isPackaged ? path.dirname(process.execPath) : path.join(app.getPath("documents"), "FellowshipTrinketsOverlay");
+}
+
+function getInstalledExePath(installDir = getDefaultInstallDir()) {
+  return path.join(installDir, "FellowshipTrinketsOverlay.exe");
+}
+
+function quotePowerShellString(value) {
+  return String(value || "").replaceAll("'", "''");
+}
+
+function writePortableUpdaterScript(archivePath, installDir) {
+  const scriptPath = path.join(app.getPath("userData"), "portable-update.ps1");
+  const exePath = getInstalledExePath(installDir);
+  const script = `
+$ErrorActionPreference = "Stop"
+$archivePath = '${quotePowerShellString(archivePath)}'
+$installDir = '${quotePowerShellString(installDir)}'
+$exePath = '${quotePowerShellString(exePath)}'
+$pidToWait = ${process.pid}
+$extractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("FellowshipTrinketsOverlay-update-" + [System.Guid]::NewGuid().ToString("N"))
+
+try {
+  Wait-Process -Id $pidToWait -Timeout 60 -ErrorAction SilentlyContinue
+  if (!(Test-Path -LiteralPath $installDir)) {
+    New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+  }
+
+  if ($archivePath.ToLowerInvariant().EndsWith(".zip")) {
+    New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+    Expand-Archive -LiteralPath $archivePath -DestinationPath $extractDir -Force
+    $sourceDir = $extractDir
+    $children = @(Get-ChildItem -LiteralPath $extractDir)
+    if ($children.Count -eq 1 -and $children[0].PSIsContainer) {
+      $sourceDir = $children[0].FullName
+    }
+    Copy-Item -Path (Join-Path $sourceDir "*") -Destination $installDir -Recurse -Force
+  } elseif ($archivePath.ToLowerInvariant().EndsWith(".exe")) {
+    Copy-Item -LiteralPath $archivePath -Destination $exePath -Force
+  } else {
+    throw "Format de mise a jour non supporte : $archivePath"
+  }
+
+  if (Test-Path -LiteralPath $exePath) {
+    Start-Process -FilePath $exePath -WorkingDirectory $installDir
+  } else {
+    Start-Process explorer.exe -ArgumentList $installDir
+  }
+} catch {
+  $message = $_.Exception.Message
+  Add-Type -AssemblyName PresentationFramework
+  [System.Windows.MessageBox]::Show("La mise a jour a echoue : $message", "Fellowship Trinkets Overlay") | Out-Null
+  Start-Process explorer.exe -ArgumentList $installDir
+} finally {
+  if (Test-Path -LiteralPath $extractDir) {
+    Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+`;
+  fs.writeFileSync(scriptPath, script.trimStart(), "utf8");
+  return scriptPath;
+}
+
+function launchPortableUpdater(archivePath, installDir) {
+  const scriptPath = writePortableUpdaterScript(archivePath, installDir);
+  spawn("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    scriptPath,
+  ], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  }).unref();
+}
+
 function loadSettings() {
   settings = readJson(SETTINGS_FILE(), {});
   settings.logDirectory = settings.logDirectory || DEFAULT_LOG_DIR;
@@ -49,6 +249,10 @@ function loadSettings() {
   settings.activeLogMaxAgeMs = Math.max(Number(settings.activeLogMaxAgeMs || ACTIVE_LOG_MAX_AGE_MS), ACTIVE_LOG_MAX_AGE_MS);
   settings.clickThrough = settings.clickThrough !== false;
   settings.learnedTrinketActivationMap = settings.learnedTrinketActivationMap || {};
+  settings.interruptPosition = settings.interruptPosition || null;
+  settings.cursorHalo = settings.cursorHalo === true;
+  settings.cursorHaloSize = Number(settings.cursorHaloSize || 48);
+  settings.updateInstallDir = settings.updateInstallDir || getDefaultInstallDir();
   clickThrough = settings.clickThrough;
 }
 
@@ -136,6 +340,7 @@ function loadCatalog() {
   );
   const relicData = readJson(path.join(root, "data", "relics.json"), { relics: {}, item_mapping: {} });
   const trinketData = readJson(path.join(root, "data", "trinkets.json"), { trinket_ids: [], trinkets: {} });
+  const interruptData = readJson(path.join(root, "data", "interrupts.json"), { interrupts: {} });
   const abilities = new Map();
 
   for (const [classId, classSkills] of Object.entries(skills)) {
@@ -168,6 +373,7 @@ function loadCatalog() {
     itemMapping: relicData.item_mapping || {},
     trinketIds: new Set((trinketData.trinket_ids || []).map((id) => Number(id)).filter(Boolean)),
     trinkets: trinketData.trinkets || {},
+    interrupts: interruptData.interrupts || {},
     learnedTrinketActivationMap: learnedActivationMap,
     trinketActivationMap: { ...learnedActivationMap, ...configuredActivationMap },
   };
@@ -415,10 +621,7 @@ function makeInterruptItem(catalog, player, parts) {
   const interruptedName = unquote(parts[9]);
   const sourceName = unquote(parts[3]) || player?.name || "Unknown";
   const targetName = unquote(parts[5]) || "Unknown";
-  const knownAbility = catalog.abilities.get(String(abilityId));
-  const classId = Number(player?.classId || knownAbility?.classId || 0);
-  const cooldown = getAbilityCooldown(player, catalog, abilityId);
-  const icon = classId ? findHeroAbilityIcon(catalog.root, classId, abilityId) : null;
+  const meta = getInterruptMeta(catalog, player, abilityId);
 
   return {
     id: `${stamp}:${parts[2]}:${abilityId}:${interruptedId}`,
@@ -426,22 +629,84 @@ function makeInterruptItem(catalog, player, parts) {
     playerName: sourceName,
     targetName,
     abilityId,
-    abilityName: abilityName || `Interrupt ${abilityId}`,
+    abilityName: abilityName || meta.name || `Interrupt ${abilityId}`,
     interruptedId,
     interruptedName: interruptedName || `Sort ${interruptedId}`,
-    cooldown,
-    readyAt: cooldown > 0 ? stamp + cooldown * 1000 : 0,
-    icon,
+    cooldown: meta.cooldown,
+    readyAt: meta.cooldown > 0 ? stamp + meta.cooldown * 1000 : 0,
+    icon: meta.icon,
     at: stamp,
+  };
+}
+
+function makeInterruptUseItem(catalog, player, parts) {
+  const stamp = Date.parse(parts[0]) || Date.now();
+  const abilityId = Number(parts[4]);
+  const abilityName = unquote(parts[5]);
+  const sourceName = unquote(parts[3]) || player?.name || "Unknown";
+  const targetName = unquote(parts[8]) || "";
+  const meta = getInterruptMeta(catalog, player, abilityId);
+
+  return {
+    id: `${stamp}:${parts[2]}:${abilityId}:use`,
+    playerId: parts[2],
+    playerName: sourceName,
+    targetName,
+    abilityId,
+    abilityName: abilityName || meta.name || `Interrupt ${abilityId}`,
+    interruptedId: 0,
+    interruptedName: "Aucun sort interrompu",
+    cooldown: meta.cooldown,
+    readyAt: meta.cooldown > 0 ? stamp + meta.cooldown * 1000 : 0,
+    icon: meta.icon,
+    at: stamp,
+    missed: true,
+  };
+}
+
+function getInterruptMeta(catalog, player, abilityId) {
+  const id = Number(abilityId);
+  const configured = catalog.interrupts?.[String(id)] || {};
+  const knownAbility = catalog.abilities.get(String(id));
+  const classId = Number(player?.classId || knownAbility?.classId || 0);
+  const fallbackIcon = classId ? findHeroAbilityIcon(catalog.root, classId, id) : null;
+  const configuredCooldown = Number(configured.cooldown);
+  const cooldown = Number.isFinite(configuredCooldown) && configuredCooldown > 0
+    ? configuredCooldown
+    : getAbilityCooldown(player, catalog, id) || INTERRUPT_COOLDOWN_FALLBACKS[id] || 0;
+
+  return {
+    name: configured.name || catalog.tooltips[String(id)]?.name || null,
+    cooldown,
+    icon: configured.icon || fallbackIcon,
   };
 }
 
 function addInterrupt(state, interrupt) {
   if (!interrupt || !interrupt.abilityId) return;
+  const duplicateIndex = state.interrupts.findIndex((item) => (
+    item.playerId === interrupt.playerId
+    && Number(item.abilityId) === Number(interrupt.abilityId)
+    && Math.abs(Number(item.at || 0) - Number(interrupt.at || 0)) < 1500
+  ));
+  if (duplicateIndex >= 0) {
+    state.interrupts[duplicateIndex] = {
+      ...state.interrupts[duplicateIndex],
+      ...interrupt,
+      readyAt: state.interrupts[duplicateIndex].readyAt || interrupt.readyAt,
+      cooldown: state.interrupts[duplicateIndex].cooldown || interrupt.cooldown,
+    };
+    return;
+  }
   state.interrupts.unshift(interrupt);
   if (state.interrupts.length > MAX_INTERRUPTS) {
     state.interrupts.length = MAX_INTERRUPTS;
   }
+}
+
+function isKnownInterruptAbility(catalog, abilityId) {
+  const id = Number(abilityId);
+  return !!catalog.interrupts?.[String(id)] || !!INTERRUPT_COOLDOWN_FALLBACKS[id];
 }
 
 function makeRelicItem(catalog, abilityId, abilityName, readyAt = 0) {
@@ -738,6 +1003,10 @@ function getEmptyPayload(filePath, reason) {
       scale: settings.scale,
       layout: settings.layout,
       clickThrough,
+      interruptPosition: settings.interruptPosition,
+      cursorHalo: settings.cursorHalo,
+      cursorHaloSize: settings.cursorHaloSize,
+      updateInstallDir: settings.updateInstallDir,
     },
     players: [],
     interrupts: [],
@@ -864,6 +1133,9 @@ function parseCombatLog(filePath) {
       if (player) {
         const castName = (parts[5] || "").replaceAll('"', "");
         const stamp = Date.parse(parts[0]) || Date.now();
+        if (type === "ABILITY_ACTIVATED" && isKnownInterruptAbility(catalog, abilityId)) {
+          addInterrupt(state, makeInterruptUseItem(catalog, player, parts));
+        }
         if (player.ultimate && String(player.ultimate.id) === abilityId) {
           player.ultimate.readyAt = stamp + player.ultimate.cooldown * 1000;
         }
@@ -887,6 +1159,10 @@ function parseCombatLog(filePath) {
       scale: settings.scale,
       layout: settings.layout,
       clickThrough,
+      interruptPosition: settings.interruptPosition,
+      cursorHalo: settings.cursorHalo,
+      cursorHaloSize: settings.cursorHaloSize,
+      updateInstallDir: settings.updateInstallDir,
     },
     players: Array.from(players.values()).slice(-4),
     interrupts: state.interrupts,
@@ -900,6 +1176,25 @@ function setClickThrough(enabled) {
   if (!win) return;
   win.setIgnoreMouseEvents(clickThrough, { forward: true });
   win.webContents.send("overlay-mode", { clickThrough });
+}
+
+function updateCursorTracking() {
+  clearInterval(cursorTimer);
+  cursorTimer = null;
+  if (!settings.cursorHalo || !win) {
+    win?.webContents.send("cursor-position", { visible: false });
+    return;
+  }
+
+  cursorTimer = setInterval(() => {
+    if (!win || win.isDestroyed()) return;
+    const point = screen.getCursorScreenPoint();
+    const bounds = win.getBounds();
+    const x = point.x - bounds.x;
+    const y = point.y - bounds.y;
+    const visible = x >= 0 && y >= 0 && x <= bounds.width && y <= bounds.height;
+    win.webContents.send("cursor-position", { x, y, visible });
+  }, 33);
 }
 
 function sendData() {
@@ -978,6 +1273,7 @@ function createWindow() {
   win.setAlwaysOnTop(true, "screen-saver");
   win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
   setClickThrough(clickThrough);
+  updateCursorTracking();
 }
 
 app.whenReady().then(() => {
@@ -1005,10 +1301,25 @@ app.whenReady().then(() => {
     return settings;
   });
 
+  ipcMain.handle("choose-install-directory", async () => {
+    const result = await dialog.showOpenDialog(win, {
+      title: "Choisir le dossier d'installation",
+      defaultPath: settings.updateInstallDir || getDefaultInstallDir(),
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || !result.filePaths[0]) return settings;
+    settings.updateInstallDir = result.filePaths[0];
+    saveSettings();
+    return settings;
+  });
+
   ipcMain.handle("save-settings", (_event, next) => {
     const previousLogDirectory = settings.logDirectory;
     settings = { ...settings, ...next };
     saveSettings();
+    if (Object.prototype.hasOwnProperty.call(next || {}, "cursorHalo")) {
+      updateCursorTracking();
+    }
     if (settings.logDirectory !== previousLogDirectory) {
       watchLogs();
     }
@@ -1029,6 +1340,51 @@ app.whenReady().then(() => {
     win?.webContents.send("watch-status", { ok: !!activeLogPath, logDirectory: settings.logDirectory, activeLogPath });
     win?.webContents.send("refresh-state", { refreshing: false, message: activeLogPath ? "Refresh termine." : "Aucun log trouve." });
     return { activeLogPath };
+  });
+
+  ipcMain.handle("update-app", async () => {
+    const sendUpdate = (payload) => win?.webContents.send("update-state", payload);
+    try {
+      sendUpdate({ updating: true, message: "Recherche de la derniere version..." });
+      const release = await requestJson(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`);
+      const latestVersion = String(release.tag_name || release.name || "").replace(/^v/i, "");
+      const currentVersion = app.getVersion();
+
+      if (latestVersion && compareVersions(latestVersion, currentVersion) <= 0) {
+        const message = `Version deja a jour (${currentVersion}).`;
+        sendUpdate({ updating: false, message });
+        return { ok: true, upToDate: true, message };
+      }
+
+      const asset = selectUpdateAsset(release);
+      if (!asset?.browser_download_url) {
+        throw new Error("Aucun fichier Windows trouve dans la derniere release GitHub.");
+      }
+
+      const installDir = settings.updateInstallDir || getDefaultInstallDir();
+      const downloadDir = path.join(app.getPath("temp"), "FellowshipTrinketsOverlay-updates");
+      fs.mkdirSync(downloadDir, { recursive: true });
+      const safeName = String(asset.name || "FellowshipTrinketsOverlay.zip").replace(/[<>:"/\\|?*]/g, "_");
+      const versionPart = latestVersion ? `-${latestVersion}` : "";
+      const destination = path.join(downloadDir, safeName.replace(/(\.[^.]+)$/i, `${versionPart}$1`));
+
+      sendUpdate({ updating: true, message: `Telechargement de ${asset.name}...` });
+      await downloadFile(asset.browser_download_url, destination, (received, total) => {
+        const percent = Math.max(1, Math.min(100, Math.round((received / total) * 100)));
+        sendUpdate({ updating: true, message: `Telechargement ${percent}%...` });
+      });
+
+      sendUpdate({ updating: true, message: "Installation de la mise a jour..." });
+      launchPortableUpdater(destination, installDir);
+      const message = `Mise a jour prete. L'application va se fermer et se relancer depuis : ${installDir}`;
+      sendUpdate({ updating: false, message });
+      setTimeout(() => app.quit(), 700);
+      return { ok: true, filePath: destination, installDir, message };
+    } catch (error) {
+      const message = error.message || String(error);
+      sendUpdate({ updating: false, message: `Erreur mise a jour : ${message}` });
+      return { ok: false, message: `Erreur mise a jour : ${message}` };
+    }
   });
 });
 

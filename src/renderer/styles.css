@@ -17,6 +17,29 @@ body {
   --scale: 0.82;
 }
 
+.cursor-halo {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--cursor-size, 48px);
+  height: var(--cursor-size, 48px);
+  margin-left: calc(var(--cursor-size, 48px) / -2);
+  margin-top: calc(var(--cursor-size, 48px) / -2);
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    0 0 16px rgba(56, 189, 248, 0.75);
+  background: radial-gradient(circle, transparent 0 42%, rgba(56, 189, 248, 0.18) 43% 100%);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.cursor-halo.hidden,
+.cursor-halo.disabled {
+  display: none;
+}
+
 .party {
   position: fixed;
   left: 42px;
@@ -41,7 +64,7 @@ body {
   width: calc(238px * var(--scale));
   display: grid;
   gap: calc(6px * var(--scale));
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .player-card {
@@ -145,7 +168,7 @@ body {
 
 .interrupt-item {
   display: grid;
-  grid-template-columns: calc(28px * var(--scale)) minmax(0, 1fr) calc(38px * var(--scale));
+  grid-template-columns: calc(28px * var(--scale)) minmax(0, 1fr) calc(52px * var(--scale));
   align-items: center;
   gap: calc(7px * var(--scale));
   min-height: calc(34px * var(--scale));
@@ -154,6 +177,7 @@ body {
   background: rgba(7, 12, 24, 0.78);
   border: 1px solid rgba(251, 191, 36, 0.34);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  cursor: move;
 }
 
 .interrupt-icon {
@@ -212,12 +236,29 @@ body {
 }
 
 .interrupt-cd {
-  min-width: calc(34px * var(--scale));
-  color: #f8fafc;
-  font-size: calc(10px * var(--scale));
+  min-width: calc(48px * var(--scale));
+  padding: calc(3px * var(--scale)) calc(5px * var(--scale));
+  border-radius: calc(4px * var(--scale));
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+  font-size: calc(9px * var(--scale));
   font-weight: 900;
-  text-align: right;
+  text-align: center;
   text-shadow: 0 2px 4px black;
+}
+
+.interrupt-item.cooldown .interrupt-cd {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.58);
+}
+
+.interrupt-item.missed {
+  border-color: rgba(148, 163, 184, 0.38);
+}
+
+.interrupt-item.missed .interrupt-target {
+  color: #cbd5e1;
 }
 
 .settings {
@@ -282,6 +323,11 @@ label {
   display: grid;
   gap: 5px;
   font-size: 12px;
+}
+
+.toggle-row {
+  grid-template-columns: 1fr auto;
+  align-items: center;
 }
 
 .hotkeys {
