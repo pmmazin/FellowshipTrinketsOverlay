@@ -34,6 +34,16 @@ body {
   flex-direction: row;
 }
 
+.interrupt-feed {
+  position: fixed;
+  left: 42px;
+  top: 110px;
+  width: calc(238px * var(--scale));
+  display: grid;
+  gap: calc(6px * var(--scale));
+  pointer-events: none;
+}
+
 .player-card {
   display: grid;
   grid-template-columns: calc(78px * var(--scale)) auto;
@@ -131,6 +141,83 @@ body {
 .ready .mask,
 .ready .timer {
   display: none;
+}
+
+.interrupt-item {
+  display: grid;
+  grid-template-columns: calc(28px * var(--scale)) minmax(0, 1fr) calc(38px * var(--scale));
+  align-items: center;
+  gap: calc(7px * var(--scale));
+  min-height: calc(34px * var(--scale));
+  padding: calc(5px * var(--scale)) calc(7px * var(--scale));
+  border-radius: calc(6px * var(--scale));
+  background: rgba(7, 12, 24, 0.78);
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.interrupt-icon {
+  width: calc(28px * var(--scale));
+  height: calc(28px * var(--scale));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: calc(4px * var(--scale));
+  background: rgba(30, 41, 59, 0.96);
+  color: #fbbf24;
+  font-size: calc(14px * var(--scale));
+  font-weight: 900;
+}
+
+.interrupt-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.interrupt-body {
+  min-width: 0;
+}
+
+.interrupt-line,
+.interrupt-target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.interrupt-line {
+  font-size: calc(10px * var(--scale));
+}
+
+.interrupt-line strong {
+  color: #fef3c7;
+  margin-right: calc(4px * var(--scale));
+}
+
+.interrupt-line span {
+  color: #e2e8f0;
+}
+
+.interrupt-target {
+  margin-top: calc(2px * var(--scale));
+  color: #93c5fd;
+  font-size: calc(9px * var(--scale));
+  font-weight: 700;
+}
+
+.interrupt-target span {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.interrupt-cd {
+  min-width: calc(34px * var(--scale));
+  color: #f8fafc;
+  font-size: calc(10px * var(--scale));
+  font-weight: 900;
+  text-align: right;
+  text-shadow: 0 2px 4px black;
 }
 
 .settings {

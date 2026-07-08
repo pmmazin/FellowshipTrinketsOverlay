@@ -1,5 +1,6 @@
 const root = document.getElementById("overlay-root");
 const party = document.getElementById("party");
+const interrupts = document.getElementById("interrupts");
 const settingsPanel = document.getElementById("settings");
 const source = document.getElementById("source");
 const pickFolder = document.getElementById("pickFolder");
@@ -23,6 +24,15 @@ function asset(path) {
   return `../../${value}`;
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function fmt(ms) {
   const seconds = Math.max(0, Math.ceil(ms / 1000));
   if (seconds >= 60) return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -36,10 +46,22 @@ function setSettingsPanelPosition(settings = {}) {
   settingsPanel.style.transform = "none";
 }
 
+function positionInterrupts(settings = {}, playerCount = latest?.players?.length || 0) {
+  const pos = settings.position || { x: 42, y: 110 };
+  const scale = Number(settings.scale || 0.82);
+  const isHorizontal = settings.layout === "horizontal";
+  const offset = isHorizontal
+    ? 64 * scale
+    : Math.max(1, Number(playerCount || 1)) * 64 * scale + 8 * scale;
+  interrupts.style.left = `${pos.x}px`;
+  interrupts.style.top = `${pos.y + offset}px`;
+}
+
 function setSettings(settings = {}) {
   const pos = settings.position || { x: 42, y: 110 };
   party.style.left = `${pos.x}px`;
   party.style.top = `${pos.y}px`;
+  positionInterrupts(settings);
   setSettingsPanelPosition(settings);
   root.style.setProperty("--scale", Number(settings.scale || 0.82));
   scaleInput.value = Math.round(Number(settings.scale || 0.82) * 100);
@@ -58,11 +80,35 @@ function renderChip(item) {
   const kind = item.kind === "ultimate" ? "ultimate" : "relic";
   const unknown = item.unknown ? "unknown" : "";
   return `
-    <div class="chip ${kind} ${unknown} ${remaining > 0 ? "cooldown" : "ready"}" title="${item.name || ""} - ${item.cooldown || 0}s" data-ready-at="${readyAt}" data-cooldown="${Number(item.cooldown || 1)}" style="--progress:${progress}">
+    <div class="chip ${kind} ${unknown} ${remaining > 0 ? "cooldown" : "ready"}" title="${escapeHtml(item.name || "")} - ${item.cooldown || 0}s" data-ready-at="${readyAt}" data-cooldown="${Number(item.cooldown || 1)}" style="--progress:${progress}">
       ${icon}
       <span class="mask"></span>
       <span class="timer">${remaining > 0 ? fmt(remaining) : ""}</span>
     </div>
+  `;
+}
+
+function renderInterrupt(item) {
+  const now = Date.now();
+  const readyAt = Number(item.readyAt || 0);
+  const cooldown = Number(item.cooldown || 0);
+  const remaining = Math.max(0, readyAt - now);
+  const icon = item.icon ? `<img src="${asset(item.icon)}" onerror="this.remove()" />` : "";
+  return `
+    <article class="interrupt-item" data-ready-at="${readyAt}" data-cooldown="${cooldown}">
+      <div class="interrupt-icon">${icon || "!"}</div>
+      <div class="interrupt-body">
+        <div class="interrupt-line">
+          <strong>${escapeHtml(item.playerName)}</strong>
+          <span>${escapeHtml(item.abilityName)}</span>
+        </div>
+        <div class="interrupt-target">
+          ${escapeHtml(item.interruptedName)}
+          ${item.targetName ? `<span>sur ${escapeHtml(item.targetName)}</span>` : ""}
+        </div>
+      </div>
+      <div class="interrupt-cd">${remaining > 0 ? fmt(remaining) : ""}</div>
+    </article>
   `;
 }
 
@@ -83,6 +129,15 @@ function updateCooldowns() {
     if (remaining > 0) hasActiveCooldown = true;
   }
 
+  for (const item of interrupts.querySelectorAll(".interrupt-item")) {
+    const readyAt = Number(item.dataset.readyAt || 0);
+    const remaining = Math.max(0, readyAt - Date.now());
+    const timer = item.querySelector(".interrupt-cd");
+    item.classList.toggle("cooldown", remaining > 0);
+    if (timer) timer.textContent = remaining > 0 ? fmt(remaining) : "";
+    if (remaining > 0) hasActiveCooldown = true;
+  }
+
   if (hasActiveCooldown) {
     cooldownTimer = setTimeout(updateCooldowns, 500);
   }
@@ -94,6 +149,7 @@ function render() {
   if (latest.inactive || !latest.players || latest.players.length === 0) {
     clearTimeout(cooldownTimer);
     party.innerHTML = "";
+    interrupts.innerHTML = "";
     source.textContent = latest.inactiveReason || "Aucun groupe actif.";
     return;
   }
@@ -109,13 +165,15 @@ function render() {
     return `
       <article class="player-card">
         <div>
-          <div class="name">${player.name || "Unknown"}</div>
+          <div class="name">${escapeHtml(player.name || "Unknown")}</div>
           ${spirit ? `<div class="spirit">${spirit}</div>` : ""}
         </div>
         <div class="icons">${icons.map(renderChip).join("")}</div>
       </article>
     `;
   }).join("");
+  interrupts.innerHTML = (latest.interrupts || []).map(renderInterrupt).join("");
+  positionInterrupts(latest.settings, latest.players?.length || 0);
   updateCooldowns();
 }
 
@@ -229,6 +287,12 @@ window.addEventListener("mousemove", (event) => {
   const y = Math.min(maxY, Math.max(0, dragStart.top + event.clientY - dragStart.mouseY));
   target.style.left = `${x}px`;
   target.style.top = `${y}px`;
+  if (!draggingSettings) {
+    positionInterrupts({
+      ...(latest?.settings || {}),
+      position: { x, y },
+    }, latest?.players?.length || 0);
+  }
 });
 
 window.addEventListener("mouseup", async () => {

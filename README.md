@@ -10,6 +10,7 @@ L'application affiche les trinkets/relics du groupe directement au-dessus du jeu
 - Affichage du Spirit actuel des joueurs quand l'information est disponible.
 - Affichage des trinkets/relics equipes avec leurs vraies icones.
 - Timer de cooldown quand un trinket/relic est utilise.
+- Feed des derniers interrupts/kicks avec le joueur, le sort interrompu et le timer du kick quand son cooldown est connu.
 - Support des trinkets FellowsGuide connus.
 - Fonctionne aussi en solo pour tester l'overlay sur des mannequins.
 - Fenetre d'overlay deplacable.

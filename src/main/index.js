@@ -8,6 +8,7 @@ const DEBUG_LOG = path.join(__dirname, "..", "..", "debug-startup.log");
 const MAX_PARSE_BYTES = 4 * 1024 * 1024;
 const INITIAL_SCAN_BYTES = 64 * 1024 * 1024;
 const ACTIVE_LOG_MAX_AGE_MS = 30 * 60 * 1000;
+const MAX_INTERRUPTS = 4;
 
 let win;
 let watcher;
@@ -406,6 +407,43 @@ function makeAbilityItem(catalog, classId, abilityId, abilityName, cooldown = 0)
   };
 }
 
+function makeInterruptItem(catalog, player, parts) {
+  const stamp = Date.parse(parts[0]) || Date.now();
+  const abilityId = Number(parts[6]);
+  const abilityName = unquote(parts[7]);
+  const interruptedId = Number(parts[8]);
+  const interruptedName = unquote(parts[9]);
+  const sourceName = unquote(parts[3]) || player?.name || "Unknown";
+  const targetName = unquote(parts[5]) || "Unknown";
+  const knownAbility = catalog.abilities.get(String(abilityId));
+  const classId = Number(player?.classId || knownAbility?.classId || 0);
+  const cooldown = getAbilityCooldown(player, catalog, abilityId);
+  const icon = classId ? findHeroAbilityIcon(catalog.root, classId, abilityId) : null;
+
+  return {
+    id: `${stamp}:${parts[2]}:${abilityId}:${interruptedId}`,
+    playerId: parts[2],
+    playerName: sourceName,
+    targetName,
+    abilityId,
+    abilityName: abilityName || `Interrupt ${abilityId}`,
+    interruptedId,
+    interruptedName: interruptedName || `Sort ${interruptedId}`,
+    cooldown,
+    readyAt: cooldown > 0 ? stamp + cooldown * 1000 : 0,
+    icon,
+    at: stamp,
+  };
+}
+
+function addInterrupt(state, interrupt) {
+  if (!interrupt || !interrupt.abilityId) return;
+  state.interrupts.unshift(interrupt);
+  if (state.interrupts.length > MAX_INTERRUPTS) {
+    state.interrupts.length = MAX_INTERRUPTS;
+  }
+}
+
 function makeRelicItem(catalog, abilityId, abilityName, readyAt = 0) {
   const meta = getRelicMetaByAnyId(catalog, abilityId);
   if (!meta) return null;
@@ -661,10 +699,12 @@ function getParseState(filePath, stat) {
       offset: initial.offset,
       carry: "",
       players: new Map(),
+      interrupts: [],
       activeSession: false,
       skipPartialFirstLine: initial.skipPartialFirstLine,
     };
   }
+  parseState.interrupts = parseState.interrupts || [];
   return parseState;
 }
 
@@ -700,6 +740,7 @@ function getEmptyPayload(filePath, reason) {
       clickThrough,
     },
     players: [],
+    interrupts: [],
   };
 }
 
@@ -724,12 +765,19 @@ function parseCombatLog(filePath) {
     if (type === "DUNGEON_START") {
       state.activeSession = true;
       players.clear();
+      state.interrupts = [];
       continue;
     }
 
     if (type === "DUNGEON_END") {
       state.activeSession = false;
       players.clear();
+      continue;
+    }
+
+    if (type === "ABILITY_INTERRUPT" && parts[2]?.startsWith("Player-")) {
+      const player = players.get(parts[2]);
+      addInterrupt(state, makeInterruptItem(catalog, player, parts));
       continue;
     }
 
@@ -841,6 +889,7 @@ function parseCombatLog(filePath) {
       clickThrough,
     },
     players: Array.from(players.values()).slice(-4),
+    interrupts: state.interrupts,
   };
 }
 
@@ -875,6 +924,7 @@ function sendData() {
         relics: (player.relics || []).map((item) => [item.id, item.itemId, item.readyAt, item.shortLabel]),
         ultimate: player.ultimate ? [player.ultimate.id, player.ultimate.readyAt] : null,
       })),
+      interrupts: (data.interrupts || []).map((item) => [item.id, item.readyAt]),
       settings: data.settings,
     });
     if (signature === lastSentSignature) return;
