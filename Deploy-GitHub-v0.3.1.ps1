@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $zipPath = Join-Path $root "dist\FellowshipTrinketsOverlay-win32-x64.zip"
@@ -17,9 +18,15 @@ if (!(Test-Path -LiteralPath $notesPath)) {
 git push origin main
 git push origin v0.3.1
 
-gh release create v0.3.1 `
-  "$zipPath" `
-  --title "Fellowship Trinkets Overlay v0.3.1" `
-  --notes-file "$notesPath"
+if (gh release view v0.3.1 *> $null) {
+  gh release edit v0.3.1 --title "Fellowship Trinkets Overlay v0.3.1" --notes-file "$notesPath"
+  gh release upload v0.3.1 "$zipPath" --clobber
+  Write-Host "Release v0.3.1 mise a jour sur GitHub."
+} else {
+  gh release create v0.3.1 `
+    "$zipPath" `
+    --title "Fellowship Trinkets Overlay v0.3.1" `
+    --notes-file "$notesPath"
 
-Write-Host "Release v0.3.1 publiee sur GitHub."
+  Write-Host "Release v0.3.1 publiee sur GitHub."
+}
