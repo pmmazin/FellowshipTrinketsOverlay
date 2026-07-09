@@ -1,11 +1,5 @@
 # Fellowship Trinkets Overlay v0.3.1
 
-Patch de confort autour de la fermeture de l'overlay.
+Historique : cette version avait teste une fermeture automatique avec Fellowship.
 
-## Nouveaute
-
-- Ajout de la fermeture automatique de l'overlay quand Fellowship se ferme.
-
-## Reglage
-
-Une option **Fermer avec Fellowship** est disponible dans les reglages `F11`.
+Cette fonctionnalite a ensuite ete retiree pour eviter un comportement inattendu chez les utilisateurs.

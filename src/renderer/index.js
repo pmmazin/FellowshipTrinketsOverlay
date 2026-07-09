@@ -10,10 +10,10 @@ const updateApp = document.getElementById("updateApp");
 const toggleClick = document.getElementById("toggleClick");
 const closeSettings = document.getElementById("closeSettings");
 const scaleInput = document.getElementById("scale");
+const opacityInput = document.getElementById("opacity");
 const layoutSelect = document.getElementById("layout");
 const cursorHalo = document.getElementById("cursorHalo");
 const cursorHaloToggle = document.getElementById("cursorHaloToggle");
-const closeWithFellowship = document.getElementById("closeWithFellowship");
 const cursorHaloSize = document.getElementById("cursorHaloSize");
 
 let latest = null;
@@ -47,10 +47,9 @@ function fmt(ms) {
 }
 
 function setSettingsPanelPosition(settings = {}) {
-  if (!settings.settingsPosition) return;
-  settingsPanel.style.left = `${settings.settingsPosition.x}px`;
-  settingsPanel.style.top = `${settings.settingsPosition.y}px`;
-  settingsPanel.style.transform = "none";
+  settingsPanel.style.left = "";
+  settingsPanel.style.top = "";
+  settingsPanel.style.transform = "";
 }
 
 function positionInterrupts(settings = {}, playerCount = latest?.players?.length || 0) {
@@ -76,12 +75,13 @@ function setSettings(settings = {}) {
   positionInterrupts(settings);
   setSettingsPanelPosition(settings);
   root.style.setProperty("--scale", Number(settings.scale || 0.82));
+  root.style.setProperty("--panel-opacity", Number(settings.opacity || 0.86));
   scaleInput.value = Math.round(Number(settings.scale || 0.82) * 100);
+  opacityInput.value = Math.round(Number(settings.opacity || 0.86) * 100);
   party.classList.toggle("horizontal", settings.layout === "horizontal");
   party.classList.toggle("vertical", settings.layout !== "horizontal");
   layoutSelect.value = settings.layout || "vertical";
   cursorHaloToggle.checked = settings.cursorHalo === true;
-  closeWithFellowship.checked = settings.closeWithFellowship !== false;
   cursorHaloSize.value = Math.round(Number(settings.cursorHaloSize || 48));
   cursorHalo.style.setProperty("--cursor-size", `${Number(settings.cursorHaloSize || 48)}px`);
   cursorHalo.classList.toggle("disabled", settings.cursorHalo !== true);
@@ -301,6 +301,12 @@ scaleInput.addEventListener("input", async () => {
   await window.fellowshipOverlay.saveSettings({ scale });
 });
 
+opacityInput.addEventListener("input", async () => {
+  const opacity = Number(opacityInput.value) / 100;
+  root.style.setProperty("--panel-opacity", opacity);
+  await window.fellowshipOverlay.saveSettings({ opacity });
+});
+
 layoutSelect.addEventListener("change", async () => {
   party.classList.toggle("horizontal", layoutSelect.value === "horizontal");
   party.classList.toggle("vertical", layoutSelect.value !== "horizontal");
@@ -311,10 +317,6 @@ cursorHaloToggle.addEventListener("change", async () => {
   cursorHalo.classList.toggle("disabled", !cursorHaloToggle.checked);
   if (!cursorHaloToggle.checked) cursorHalo.classList.add("hidden");
   await window.fellowshipOverlay.saveSettings({ cursorHalo: cursorHaloToggle.checked });
-});
-
-closeWithFellowship.addEventListener("change", async () => {
-  await window.fellowshipOverlay.saveSettings({ closeWithFellowship: closeWithFellowship.checked });
 });
 
 cursorHaloSize.addEventListener("input", async () => {
@@ -351,17 +353,6 @@ interrupts.addEventListener("mousedown", (event) => {
 
 settingsPanel.querySelector("header").addEventListener("mousedown", (event) => {
   if (event.target.closest("button")) return;
-  draggingSettings = true;
-  const rect = settingsPanel.getBoundingClientRect();
-  settingsPanel.style.left = `${rect.left}px`;
-  settingsPanel.style.top = `${rect.top}px`;
-  settingsPanel.style.transform = "none";
-  dragStart = {
-    mouseX: event.clientX,
-    mouseY: event.clientY,
-    left: rect.left,
-    top: rect.top,
-  };
 });
 
 window.addEventListener("mousemove", (event) => {

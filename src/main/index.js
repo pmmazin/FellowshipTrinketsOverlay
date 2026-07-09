@@ -1,5 +1,5 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, dialog, screen } = require("electron");
-const { execFile, spawn } = require("child_process");
+const { spawn } = require("child_process");
 const fs = require("fs");
 const https = require("https");
 const path = require("path");
@@ -30,9 +30,6 @@ let watcher;
 let activeLogPath = null;
 let parseTimer = null;
 let cursorTimer = null;
-let processMonitorTimer = null;
-let fellowshipSeenThisSession = false;
-let missingFellowshipChecks = 0;
 let clickThrough = true;
 let settings = {};
 let lastData = null;
@@ -162,18 +159,6 @@ function selectUpdateAsset(release) {
   return assets.find((asset) => /FellowshipTrinketsOverlay.*win.*\.(zip|exe)$/i.test(asset.name))
     || assets.find((asset) => /FellowshipTrinketsOverlay.*\.(zip|exe)$/i.test(asset.name))
     || assets.find((asset) => /\.(zip|exe)$/i.test(asset.name));
-}
-
-function isProcessRunning(imageName) {
-  return new Promise((resolve) => {
-    execFile("tasklist.exe", ["/FI", `IMAGENAME eq ${imageName}`, "/NH"], { windowsHide: true }, (error, stdout) => {
-      if (error) {
-        resolve(false);
-        return;
-      }
-      resolve(String(stdout || "").toLowerCase().includes(imageName.toLowerCase()));
-    });
-  });
 }
 
 function getDefaultInstallDir() {
@@ -318,6 +303,7 @@ function loadSettings() {
   settings.logDirectory = settings.logDirectory || DEFAULT_LOG_DIR;
   settings.position = settings.position || { x: 42, y: 110 };
   settings.scale = Number(settings.scale || 0.82);
+  settings.opacity = Math.max(0.25, Math.min(1, Number(settings.opacity || 0.86)));
   settings.layout = settings.layout || "vertical";
   settings.activeLogMaxAgeMs = Math.max(Number(settings.activeLogMaxAgeMs || ACTIVE_LOG_MAX_AGE_MS), ACTIVE_LOG_MAX_AGE_MS);
   settings.clickThrough = settings.clickThrough !== false;
@@ -326,7 +312,6 @@ function loadSettings() {
   settings.cursorHalo = settings.cursorHalo === true;
   settings.cursorHaloSize = Number(settings.cursorHaloSize || 48);
   settings.updateInstallDir = settings.updateInstallDir || getDefaultInstallDir();
-  settings.closeWithFellowship = settings.closeWithFellowship !== false;
   clickThrough = settings.clickThrough;
 }
 
@@ -1075,13 +1060,13 @@ function getEmptyPayload(filePath, reason) {
     settings: {
       position: settings.position,
       scale: settings.scale,
+      opacity: settings.opacity,
       layout: settings.layout,
       clickThrough,
       interruptPosition: settings.interruptPosition,
       cursorHalo: settings.cursorHalo,
       cursorHaloSize: settings.cursorHaloSize,
       updateInstallDir: settings.updateInstallDir,
-      closeWithFellowship: settings.closeWithFellowship,
     },
     players: [],
     interrupts: [],
@@ -1232,13 +1217,13 @@ function parseCombatLog(filePath) {
     settings: {
       position: settings.position,
       scale: settings.scale,
+      opacity: settings.opacity,
       layout: settings.layout,
       clickThrough,
       interruptPosition: settings.interruptPosition,
       cursorHalo: settings.cursorHalo,
       cursorHaloSize: settings.cursorHaloSize,
       updateInstallDir: settings.updateInstallDir,
-      closeWithFellowship: settings.closeWithFellowship,
     },
     players: Array.from(players.values()).slice(-4),
     interrupts: state.interrupts,
@@ -1271,29 +1256,6 @@ function updateCursorTracking() {
     const visible = x >= 0 && y >= 0 && x <= bounds.width && y <= bounds.height;
     win.webContents.send("cursor-position", { x, y, visible });
   }, 33);
-}
-
-async function checkFellowshipProcess() {
-  if (!settings.closeWithFellowship) return;
-  const running = await isProcessRunning("fellowship.exe");
-  if (running) {
-    fellowshipSeenThisSession = true;
-    missingFellowshipChecks = 0;
-    return;
-  }
-
-  if (!fellowshipSeenThisSession) return;
-  missingFellowshipChecks += 1;
-  if (missingFellowshipChecks >= 2) {
-    debug("Fellowship closed, quitting overlay");
-    app.quit();
-  }
-}
-
-function startProcessMonitor() {
-  clearInterval(processMonitorTimer);
-  processMonitorTimer = setInterval(checkFellowshipProcess, 5000);
-  checkFellowshipProcess();
 }
 
 function sendData() {
@@ -1383,8 +1345,6 @@ app.whenReady().then(() => {
   debug("window created");
   watchLogs();
   debug("watching logs");
-  startProcessMonitor();
-  debug("watching Fellowship process");
 
   globalShortcut.register("F8", () => setClickThrough(!clickThrough));
   globalShortcut.register("F10", () => (win.isVisible() ? win.hide() : win.show()));
@@ -1420,11 +1380,6 @@ app.whenReady().then(() => {
     saveSettings();
     if (Object.prototype.hasOwnProperty.call(next || {}, "cursorHalo")) {
       updateCursorTracking();
-    }
-    if (Object.prototype.hasOwnProperty.call(next || {}, "closeWithFellowship")) {
-      fellowshipSeenThisSession = false;
-      missingFellowshipChecks = 0;
-      startProcessMonitor();
     }
     if (settings.logDirectory !== previousLogDirectory) {
       watchLogs();
@@ -1500,6 +1455,5 @@ app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   if (watcher) watcher.close();
-  clearInterval(processMonitorTimer);
   clearInterval(cursorTimer);
 });

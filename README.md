@@ -53,7 +53,6 @@ Dans les reglages, tu peux :
 - activer/desactiver le click-through.
 - choisir le dossier d'installation ;
 - installer la derniere mise a jour disponible dans ce dossier.
-- activer/desactiver la fermeture automatique avec Fellowship.
 
 La mise a jour telecharge la derniere release, ferme l'application, remplace les fichiers dans le dossier d'installation choisi, puis relance `FellowshipTrinketsOverlay.exe`.
 

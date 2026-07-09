@@ -15,6 +15,7 @@ body {
   inset: 0;
   pointer-events: none;
   --scale: 0.82;
+  --panel-opacity: 0.86;
 }
 
 .cursor-halo {
@@ -76,7 +77,7 @@ body {
   min-height: calc(54px * var(--scale));
   padding: calc(6px * var(--scale)) calc(7px * var(--scale));
   border-radius: calc(7px * var(--scale));
-  background: rgba(7, 12, 24, 0.86);
+  background: rgba(7, 12, 24, var(--panel-opacity));
   border: 1px solid rgba(78, 166, 220, 0.35);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.36);
 }
@@ -174,7 +175,7 @@ body {
   min-height: calc(34px * var(--scale));
   padding: calc(5px * var(--scale)) calc(7px * var(--scale));
   border-radius: calc(6px * var(--scale));
-  background: rgba(7, 12, 24, 0.78);
+  background: rgba(7, 12, 24, var(--panel-opacity));
   border: 1px solid rgba(251, 191, 36, 0.34);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
   cursor: move;
@@ -264,45 +265,75 @@ body {
 .settings {
   position: fixed;
   left: 50%;
-  top: 50%;
-  width: min(560px, calc(100vw - 40px));
-  transform: translate(-50%, -50%);
+  top: 10px;
+  width: min(1120px, calc(100vw - 88px));
+  transform: translate(-50%, 0);
   pointer-events: auto;
-  padding: 16px;
-  border-radius: 8px;
-  background: rgba(7, 12, 24, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.48);
+  padding: 12px 14px 14px;
+  border-radius: 10px;
+  background: rgba(7, 13, 27, var(--panel-opacity));
+  border: 1px solid rgba(77, 166, 230, 0.22);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.5);
+  transition: transform 180ms ease, opacity 180ms ease;
+  z-index: 900;
 }
 
 .settings.hidden {
-  display: none;
+  opacity: 1;
+  transform: translate(-50%, calc(-100% - 12px));
 }
 
 .settings header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  cursor: move;
+  gap: 14px;
+  cursor: default;
 }
 
 .settings h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
+  letter-spacing: 0;
 }
 
 .settings p {
-  margin: 5px 0 0;
-  font-size: 12px;
+  margin: 3px 0 0;
+  max-width: min(760px, 70vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
   color: #cbd5e1;
+}
+
+.settings::after {
+  content: "F11";
+  position: absolute;
+  left: 50%;
+  bottom: -30px;
+  width: 66px;
+  height: 26px;
+  transform: translateX(-50%);
+  border-radius: 0 0 10px 10px;
+  border: 1px solid rgba(77, 166, 230, 0.22);
+  border-top: 0;
+  background: rgba(7, 13, 27, var(--panel-opacity));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+  color: #93c5fd;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 16px;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  align-items: stretch;
 }
 
 button,
@@ -312,17 +343,50 @@ input {
 }
 
 button {
-  min-height: 34px;
-  border-radius: 7px;
+  min-height: 42px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(18, 28, 48, 0.86);
   color: white;
+}
+
+.tool-button {
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+#closeSettings {
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
+  font-size: 11px;
+}
+
+.control-tile {
+  min-height: 42px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(18, 28, 48, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #dbeafe;
+  font-weight: 700;
+}
+
+.control-tile input[type="range"] {
+  width: 100%;
+}
+
+.control-tile select {
+  width: 100%;
+  min-width: 0;
 }
 
 .toggle-row {
@@ -331,5 +395,16 @@ label {
 }
 
 .hotkeys {
-  margin-top: 14px !important;
+  margin-top: 8px !important;
+  font-size: 11px !important;
+}
+
+@media (max-width: 920px) {
+  .settings {
+    width: min(720px, calc(100vw - 36px));
+  }
+
+  .settings-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
