@@ -57,6 +57,8 @@ Dans les reglages, tu peux :
 
 La mise a jour telecharge la derniere release, ferme l'application, remplace les fichiers dans le dossier d'installation choisi, puis relance `FellowshipTrinketsOverlay.exe`.
 
+Si une mise a jour echoue pendant l'installation, un log est ecrit dans les donnees utilisateur de l'application sous le nom `portable-update.log`.
+
 Les versions publiees avant l'ajout du bouton de mise a jour doivent etre remplacees manuellement une derniere fois. Ensuite, les mises a jour suivantes peuvent se faire directement depuis l'application.
 
 ## Notes

@@ -180,6 +180,12 @@ function getDefaultInstallDir() {
   return app.isPackaged ? path.dirname(process.execPath) : path.join(app.getPath("documents"), "FellowshipTrinketsOverlay");
 }
 
+function getUpdateInstallDir() {
+  const configured = String(settings.updateInstallDir || "");
+  if (configured && fs.existsSync(getInstalledExePath(configured))) return configured;
+  return getDefaultInstallDir();
+}
+
 function getInstalledExePath(installDir = getDefaultInstallDir()) {
   return path.join(installDir, "FellowshipTrinketsOverlay.exe");
 }
@@ -191,21 +197,67 @@ function quotePowerShellString(value) {
 function writePortableUpdaterScript(archivePath, installDir) {
   const scriptPath = path.join(app.getPath("userData"), "portable-update.ps1");
   const exePath = getInstalledExePath(installDir);
+  const logPath = path.join(app.getPath("userData"), "portable-update.log");
   const script = `
 $ErrorActionPreference = "Stop"
 $archivePath = '${quotePowerShellString(archivePath)}'
 $installDir = '${quotePowerShellString(installDir)}'
 $exePath = '${quotePowerShellString(exePath)}'
+$logPath = '${quotePowerShellString(logPath)}'
 $pidToWait = ${process.pid}
 $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("FellowshipTrinketsOverlay-update-" + [System.Guid]::NewGuid().ToString("N"))
 
+function Write-UpdateLog($message) {
+  $line = "$(Get-Date -Format o) $message"
+  Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
+}
+
+function Wait-OverlayExit {
+  Write-UpdateLog "Waiting for overlay process $pidToWait"
+  Wait-Process -Id $pidToWait -Timeout 90 -ErrorAction SilentlyContinue
+
+  for ($attempt = 0; $attempt -lt 30; $attempt++) {
+    $running = @(Get-Process -Name "FellowshipTrinketsOverlay" -ErrorAction SilentlyContinue | Where-Object {
+      try {
+        $_.Path -and ($_.Path -ieq $exePath -or $_.Path.StartsWith($installDir, [System.StringComparison]::OrdinalIgnoreCase))
+      } catch {
+        $false
+      }
+    })
+    if ($running.Count -eq 0) {
+      Write-UpdateLog "Overlay processes closed"
+      return
+    }
+    Start-Sleep -Milliseconds 500
+  }
+}
+
+function Copy-WithRetry($source, $destination) {
+  for ($attempt = 1; $attempt -le 12; $attempt++) {
+    try {
+      Copy-Item -Path $source -Destination $destination -Recurse -Force
+      return
+    } catch {
+      Write-UpdateLog "Copy attempt $attempt failed: $($_.Exception.Message)"
+      Start-Sleep -Milliseconds 800
+    }
+  }
+  Copy-Item -Path $source -Destination $destination -Recurse -Force
+}
+
 try {
-  Wait-Process -Id $pidToWait -Timeout 60 -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
+  Write-UpdateLog "Starting update"
+  Write-UpdateLog "Archive: $archivePath"
+  Write-UpdateLog "Install dir: $installDir"
+  Wait-OverlayExit
+
   if (!(Test-Path -LiteralPath $installDir)) {
     New-Item -ItemType Directory -Force -Path $installDir | Out-Null
   }
 
   if ($archivePath.ToLowerInvariant().EndsWith(".zip")) {
+    Write-UpdateLog "Extracting archive"
     New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractDir -Force
     $sourceDir = $extractDir
@@ -213,27 +265,33 @@ try {
     if ($children.Count -eq 1 -and $children[0].PSIsContainer) {
       $sourceDir = $children[0].FullName
     }
-    Copy-Item -Path (Join-Path $sourceDir "*") -Destination $installDir -Recurse -Force
+    Write-UpdateLog "Copying from $sourceDir"
+    Copy-WithRetry (Join-Path $sourceDir "*") $installDir
   } elseif ($archivePath.ToLowerInvariant().EndsWith(".exe")) {
-    Copy-Item -LiteralPath $archivePath -Destination $exePath -Force
+    Write-UpdateLog "Copying exe"
+    Copy-WithRetry $archivePath $exePath
   } else {
     throw "Format de mise a jour non supporte : $archivePath"
   }
 
   if (Test-Path -LiteralPath $exePath) {
+    Write-UpdateLog "Starting updated exe"
     Start-Process -FilePath $exePath -WorkingDirectory $installDir
   } else {
+    Write-UpdateLog "Exe missing after update"
     Start-Process explorer.exe -ArgumentList $installDir
   }
 } catch {
   $message = $_.Exception.Message
+  Write-UpdateLog "Update failed: $message"
   Add-Type -AssemblyName PresentationFramework
-  [System.Windows.MessageBox]::Show("La mise a jour a echoue : $message", "Fellowship Trinkets Overlay") | Out-Null
+  [System.Windows.MessageBox]::Show("La mise a jour a echoue : $message\\n\\nLog : $logPath", "Fellowship Trinkets Overlay") | Out-Null
   Start-Process explorer.exe -ArgumentList $installDir
 } finally {
   if (Test-Path -LiteralPath $extractDir) {
     Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue
   }
+  Write-UpdateLog "Updater finished"
 }
 `;
   fs.writeFileSync(scriptPath, script.trimStart(), "utf8");
@@ -1409,7 +1467,9 @@ app.whenReady().then(() => {
         throw new Error("Aucun fichier Windows trouve dans la derniere release GitHub.");
       }
 
-      const installDir = settings.updateInstallDir || getDefaultInstallDir();
+      const installDir = getUpdateInstallDir();
+      settings.updateInstallDir = installDir;
+      saveSettings();
       const downloadDir = path.join(app.getPath("temp"), "FellowshipTrinketsOverlay-updates");
       fs.mkdirSync(downloadDir, { recursive: true });
       const safeName = String(asset.name || "FellowshipTrinketsOverlay.zip").replace(/[<>:"/\\|?*]/g, "_");
